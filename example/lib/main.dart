@@ -1,6 +1,4 @@
-import 'dart:typed_data';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pag/pag.dart';
@@ -12,6 +10,11 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    /// use codes below to config cache / multi-thread settings
+    // PAG.enableCache(false);
+    // PAG.enableMultiThread(false);
+    // PAG.setCacheSize(4);   ///default size is 8
+    // PAG.enableReuse(false);
     return MaterialApp(
       home: MyHome(),
     );
@@ -19,8 +22,80 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHome extends StatefulWidget {
+  // @override
+  // _MyHomeState createState() => _MyHomeState();
+
   @override
-  _MyHomeState createState() => _MyHomeState();
+  _MyListHomeState createState() => _MyListHomeState();
+}
+
+///PAG用于ListView，用于测试加载速度
+class _MyListHomeState extends State<MyHome> {
+  bool visible = false;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextButton(
+          child: Container(
+            width: 100,
+            height: 50,
+            alignment: Alignment.center,
+            color: Color.fromARGB(255, 100, 255, 100),
+            child: Text(
+                'Test'
+            ),
+          ),
+          onPressed: (){
+            setState(() {
+              visible = !visible;
+            });
+          },
+
+        ),
+        Expanded(
+            child: Visibility(
+              visible: visible,
+              child: ListView.builder(
+                  itemCount: 300,
+                  // cacheExtent: 3000.0,
+                  itemBuilder: (context, index) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        PAGView.asset(
+                          'data/${index % 5}.pag',
+                          width: (index % 7) * 10 + 10,
+                          height: (index % 7) * 10 + 10,
+                          // 'data/large.pag',
+                          repeatCount: PAGView.REPEAT_COUNT_LOOP,
+                          initProgress: 0.25,
+                          autoPlay: true,
+                          // reuse: index % 4 != 0,
+                          key: ValueKey(index),
+                        ),
+                        Visibility(child: PAGView.network(
+                          "https://svipwebwx-30096.sz.gfp.tencent-cloud.com/file1647585475981.pag",
+                          repeatCount: PAGView.REPEAT_COUNT_LOOP,
+                          initProgress: 0.25,
+                          // width: 100,
+                          // height: 100,
+                          autoPlay: true,
+                          key: ValueKey(index),
+                        ),
+                          visible: index % 6 == 0,
+                        )
+                      ],
+                    );
+                  }
+              ),
+            )
+        ),
+      ],
+    );
+  }
+
 }
 
 class _MyHomeState extends State<MyHome> {
