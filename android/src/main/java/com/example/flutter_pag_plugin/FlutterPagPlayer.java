@@ -52,14 +52,6 @@ public class FlutterPagPlayer extends PAGPlayer {
         this.textureId = textureId;
         progress = initProgress;
         this.initProgress = initProgress;
-        initAnimator(repeatCount);
-    }
-
-    private boolean valid() {
-        return getSurface() != null && surfaceTexture != null;
-    }
-
-    private void initAnimator(int repeatCount) {
         animator.setDuration(duration() / 1000L);
         if (repeatCount < 0) {
             repeatCount = 0;
@@ -68,12 +60,27 @@ public class FlutterPagPlayer extends PAGPlayer {
         setProgressValue(initProgress);
     }
 
+    private boolean valid() {
+        return getSurface() != null && surfaceTexture != null;
+    }
+
+
     public void setProgressValue(double value) {
-        this.progress = Math.max(0.0D, Math.min(value, 1.0D));
-        this.currentPlayTime = (long) (progress * (double) this.animator.getDuration());
-        this.animator.setCurrentPlayTime(currentPlayTime);
-        setProgress(progress);
-        flush();
+        if (WorkThreadExecutor.multiThread) {
+            synchronized (this) {
+                this.progress = Math.max(0.0D, Math.min(value, 1.0D));
+                this.currentPlayTime = (long) (progress * (double) this.animator.getDuration());
+                this.animator.setCurrentPlayTime(currentPlayTime);
+                setProgress(progress);
+                flush();
+            }
+        } else {
+            this.progress = Math.max(0.0D, Math.min(value, 1.0D));
+            this.currentPlayTime = (long) (progress * (double) this.animator.getDuration());
+            this.animator.setCurrentPlayTime(currentPlayTime);
+            setProgress(progress);
+            flush();
+        }
     }
 
     public void start() {
@@ -140,20 +147,18 @@ public class FlutterPagPlayer extends PAGPlayer {
         animator.cancel();
         animator.removeAllUpdateListeners();
         animator.removeAllListeners();
-        WorkThreadExecutor.getInstance().post(() -> {
-            if (WorkThreadExecutor.multiThread) {
-                synchronized (this) {
-                    if (getSurface() != null) getSurface().release();
-                    surfaceTexture.release();
-                    surfaceTexture = null;
-                }
-            } else {
+        //此处如果放入子线程处理，会打印gl的错误日志，挪到主线程
+        if (WorkThreadExecutor.multiThread) {
+            synchronized (this) {
                 if (getSurface() != null) getSurface().release();
                 surfaceTexture.release();
                 surfaceTexture = null;
             }
-
-        });
+        } else {
+            if (getSurface() != null) getSurface().release();
+            surfaceTexture.release();
+            surfaceTexture = null;
+        }
         isRelease = true;
     }
 
@@ -184,8 +189,15 @@ public class FlutterPagPlayer extends PAGPlayer {
         public void onAnimationUpdate(ValueAnimator animation) {
             progress = (double) (Float) animation.getAnimatedValue();
             currentPlayTime = (long) (progress * (double) animator.getDuration());
-            setProgress(progress);
-            flush();
+            if (WorkThreadExecutor.multiThread) {
+                synchronized (FlutterPagPlayer.this) {
+                    setProgress(progress);
+                    flush();
+                }
+            } else {
+                setProgress(progress);
+                flush();
+            }
         }
     };
 
